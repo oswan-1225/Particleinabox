@@ -2,6 +2,7 @@
 Particle class for the simulation.
 A particle has a position, velocity, size, and color.
 """
+import math as m
 
 class Particle:
     def __init__(self, x, y, vx, vy, radius=10, color=(255, 255, 255)):
@@ -13,8 +14,8 @@ class Particle:
             y: Starting y position
             vx: Velocity in x direction (pixels per frame)
             vy: Velocity in y direction (pixels per frame)
-            radius: Size of the particle (default: 10)
-            color: RGB color tuple (default: white)
+            radius: Size of the particle 
+            color: RGB color tuple 
         """
         self.x = x
         self.y = y
@@ -41,35 +42,78 @@ class Particle:
             width: Width of the box/window
             height: Height of the box/window
         """
-        # Checks if particle hits left or right wall
-        if self.x - self.radius <= 0 or self.x + self.radius >= width:
-            self.vx = -self.vx
+        # Check horizontal walls
+        if self.x - self.radius < 0:
+            self.x = self.radius
+            self.vx = abs(self.vx)
+        elif self.x + self.radius > width:
+            self.x = width - self.radius
+            self.vx = -abs(self.vx)
 
+        # Check vertical walls
+        if self.y - self.radius < 0:
+            self.y = self.radius
+            self.vy = abs(self.vy)
+        elif self.y + self.radius > height:
+            self.y = height - self.radius
+            self.vy = -abs(self.vy)
         
-        #Checks if particle hits top or bottom wall  
-        if self.y - self.radius <= 0 or self.y + self.radius >= height:
-            self.vy = -self.vy
-        pass
 
     def bounce_off_particle(self, other):
         # Checks to see if particles collides with another particle and bounces off:
-        ox = other.x - self.x
-        oy = other.y - self.y
-        distance_squared = ox**2 + oy**2
-        radius_sum = self.radius + other.radius
-        if distance_squared < radius_sum**2:
-            # transfers some of the "energy" as velocity to the other particles
-            transfer_factor = 0.1 
+        dx = other.x - self.x
+        dy = other.y - self.y
+        dist_sq = dx * dx + dy * dy # distance squared between centers
+        min_dist = self.radius + other.radius
 
-            # Simple elastic collision response (not physically accurate)
-            self.vx, other.vx = other.vx, self.vx
-            self.vy, other.vy = other.vy, self.vy
+        #no collision
+        if dist_sq >= min_dist * min_dist:
+            return
 
-            # Transfer energy: self loses, other gains
-            energy_x = transfer_factor * self.vx
-            energy_y = transfer_factor * self.vy
-            
-            self.vx -= energy_x
-            self.vy -= energy_y
-            other.vx += energy_x
-            other.vy += energy_y
+        # Handle overlap
+        if dist_sq == 0:
+            nx, ny = 1.0, 0.0
+            dist = 1.0
+        else:
+            dist = m.sqrt(dist_sq)
+            nx = dx / dist
+            ny = dy / dist
+        
+        # rel velo
+        rvx = other.vx - self.vx
+        rvy = other.vy - self.vy
+
+        # speed along normal
+        vel_along_normal = rvx * nx + rvy * ny
+
+        # resolve overlap if colliding
+        if vel_along_normal > 0:
+            penetration = min_dist - dist
+            if penetration > 0:
+                correction = penetration / 2
+                self.x -= correction * nx
+                self.y -= correction * ny
+                other.x += correction * nx
+                other.y += correction * ny
+            return
+        
+        # Elastic collision response (m1 = m2 = 1 for simplicity)
+              #m1   #m2
+        j = -(1.0 + 1.0) * vel_along_normal / 2
+        impulse_x = j * nx
+        impulse_y = j * ny
+
+        self.vx -= impulse_x
+        self.vy -= impulse_y
+        other.vx += impulse_x
+        other.vy += impulse_y
+
+        # Handle overlap after collision response
+        penetration = min_dist - dist
+        if penetration > 0:
+            correction = penetration / 2
+            self.x -= correction * nx
+            self.y -= correction * ny
+            other.x += correction * nx
+            other.y += correction * ny
+    

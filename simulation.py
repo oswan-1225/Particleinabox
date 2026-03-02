@@ -7,18 +7,18 @@ import pygame
 import random
 from particle import Particle
 
-# Constants - feel free to modify these!
-WINDOW_WIDTH = 800
-WINDOW_HEIGHT = 600
+# Constants 
+WINDOW_WIDTH = 1260
+WINDOW_HEIGHT = 720
 FPS = 60  # Frames per second
 BACKGROUND_COLOR = (20, 20, 40)  # Dark blue background
 
 # Particle settings
 PARTICLE_RADIUS = 15
 PARTICLE_COLOR = (100, 200, 255)  # Light blue
-INITIAL_SPEED = 5  # How fast the particle moves
+INITIAL_SPEED = 7  # How fast the particle moves (pixels per frame)
 
-# Energy tracking
+# Graph settings
 GRAPH_WIDTH = 200
 GRAPH_HEIGHT = 100
 GRAPH_X = WINDOW_WIDTH - GRAPH_WIDTH - 10
@@ -59,7 +59,7 @@ def draw_energy_graph(window, energy_history):
             
             pygame.draw.line(window, (100, 200, 255), (x1, y1), (x2, y2), 2)
     
-    # Display current energy value and frame count
+    # Display current energy value
     if energy_history:
         font_small = pygame.font.Font(None, 18)
         energy_text = font_small.render(f"Current: {energy_history[-1]:.1f}", True, (100, 200, 255))
@@ -86,8 +86,9 @@ def main():
     # defines the parameters of the particle and creates an instance of the Particle class
     # create multiple particles by creating a list of Particle instances
     
-    particlecount = 15
+    particlecount = 30
 
+    #generates the particles
     particles = []
     for _ in range(particlecount):
         particle = Particle(
