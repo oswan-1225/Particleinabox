@@ -116,4 +116,24 @@ class Particle:
             self.y -= correction * ny
             other.x += correction * nx
             other.y += correction * ny
-    
+
+    def sametypebonding(self, other, bond_distance=None):
+        """
+        Return True when two same-color particles are close enough to form a bond.
+
+        Args:
+            other: Another particle.
+            bond_distance: Maximum center-to-center distance to create a bond.
+                If None, defaults to 2.5x combined radii.
+        """
+        if self.color != other.color:
+            return False
+
+        dx = other.x - self.x
+        dy = other.y - self.y
+        dist_sq = dx * dx + dy * dy
+
+        if bond_distance is None:
+            bond_distance = (self.radius + other.radius) * 2.5
+
+        return dist_sq <= bond_distance * bond_distance

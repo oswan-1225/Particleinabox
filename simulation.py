@@ -5,6 +5,7 @@ Press the close button to exit.
 
 import pygame
 import random
+import math
 from particle import Particle
 
 # Constants - feel free to modify these!
@@ -14,11 +15,16 @@ FPS = 60  # Frames per second
 BACKGROUND_COLOR = (20, 20, 40)  # Dark blue background
 
 # Particle settings
-PARTICLE_RADIUS = 15
-PARTICLE_COLOR = (255, 192, 203) # pink
-PARTICLE_COLOR_2 = (255, 215, 0) # gold
-INITIAL_SPEED= 0.1  # Pink speed
-INITIAL_SPEED_2 = 1 # Gold Speed
+PARTICLE_RADIUS = 5
+PARTICLE_COLOR = (255, 192, 203) # pink particles
+PARTICLE_COLOR_2 = (255, 215, 0) # gold particles
+INITIAL_SPEED= 5  # Pink speed
+INITIAL_SPEED_2 = 5 # Gold Speed
+
+# Bond settings
+BOND_DISTANCE = PARTICLE_RADIUS * 3.0  # Distance threshold to create bond
+BOND_COLOR = (220, 220, 255)  # Color of rigid bar between bonded particles
+BOND_WIDTH = 2
 
 # Energy tracking
 GRAPH_WIDTH = 200
@@ -79,6 +85,37 @@ def draw_energy_graph(window, energy_history):
         window.blit(energy_text_pink, (GRAPH_X + 10, GRAPH_Y + GRAPH_HEIGHT - 45))
         window.blit(energy_text_gold, (GRAPH_X + 10, GRAPH_Y + GRAPH_HEIGHT - 25))
 
+
+def enforce_bond(p1, p2, bond_length):
+    """Apply a rigid-distance constraint between two bonded particles."""
+    dx = p2.x - p1.x
+    dy = p2.y - p1.y
+    dist = math.hypot(dx, dy)
+
+    if dist == 0:
+        return
+
+    nx = dx / dist
+    ny = dy / dist
+
+    # Positional correction to keep bar length fixed
+    offset = (dist - bond_length) / 2
+    p1.x += nx * offset
+    p1.y += ny * offset
+    p2.x -= nx * offset
+    p2.y -= ny * offset
+
+    # Remove relative velocity along bond normal to keep rigid behavior
+    rvx = p2.vx - p1.vx
+    rvy = p2.vy - p1.vy
+    vel_along_normal = rvx * nx + rvy * ny
+    correction_vx = nx * vel_along_normal / 2
+    correction_vy = ny * vel_along_normal / 2
+    p1.vx += correction_vx
+    p1.vy += correction_vy
+    p2.vx -= correction_vx
+    p2.vy -= correction_vy
+
 def main():
     """Main function that runs the simulation."""
     # defines window size and title
@@ -100,23 +137,50 @@ def main():
     # create multiple particles by creating a list of Particle instances
 
     ###
-    particlecount = 10 # Number of particles in the simulation
+    particlecount = 100 # Number of particles in the simulation
     ###
 
     particles = []
+    max_spawn_attempts = 500
     for i in range(particlecount):
         color = PARTICLE_COLOR if i < particlecount // 2 else PARTICLE_COLOR_2
         vx = INITIAL_SPEED if color == PARTICLE_COLOR else INITIAL_SPEED_2
         vy = INITIAL_SPEED if color == PARTICLE_COLOR else INITIAL_SPEED_2
-        particle = Particle(
-            x=random.randint(PARTICLE_RADIUS, WINDOW_WIDTH - PARTICLE_RADIUS),
-            y=random.randint(PARTICLE_RADIUS, WINDOW_HEIGHT - PARTICLE_RADIUS),
-            vx=vx if random.random() > 0.5 else -vx,
-            vy=vy if random.random() > 0.5 else -vy,
-            radius=PARTICLE_RADIUS,
-            color=color
-        )
-        particles.append(particle)
+
+        spawned_particle = None
+        for _ in range(max_spawn_attempts):
+            x = random.randint(PARTICLE_RADIUS, WINDOW_WIDTH - PARTICLE_RADIUS)
+            y = random.randint(PARTICLE_RADIUS, WINDOW_HEIGHT - PARTICLE_RADIUS)
+
+            overlaps_existing = any(
+                (x - p.x) ** 2 + (y - p.y) ** 2 < (PARTICLE_RADIUS + p.radius) ** 2
+                for p in particles
+            )
+            if not overlaps_existing:
+                spawned_particle = Particle(
+                    x=x,
+                    y=y,
+                    vx=vx if random.random() > 0.5 else -vx,
+                    vy=vy if random.random() > 0.5 else -vy,
+                    radius=PARTICLE_RADIUS,
+                    color=color
+                )
+                break
+
+        if spawned_particle is not None:
+            particles.append(spawned_particle)
+        else:
+            print(f"Could only place {len(particles)} particles without overlap. Reduce radius or count.")
+            break
+
+    print(f"Configured particle radius: {PARTICLE_RADIUS}")
+    if particles:
+        print(f"Spawned particles: {len(particles)} | Actual particle radius: {particles[0].radius}")
+    else:
+        print("Spawned particles: 0")
+
+    # Store bonds as {(i, j): bond_length}
+    bonds = {}
     
     # Main game loop
     running = True
@@ -144,9 +208,26 @@ def main():
                 p2 = particles[j]
                 
                 p1.bounce_off_particle(p2)
+
+                # Create same-color bonds when particles get close enough
+                if p1.sametypebonding(p2, bond_distance=BOND_DISTANCE):
+                    pair_key = (i, j)
+                    if pair_key not in bonds:
+                        bond_length = math.hypot(p2.x - p1.x, p2.y - p1.y)
+                        bonds[pair_key] = max(bond_length, p1.radius + p2.radius)
+
+        # Enforce rigid bar constraints for all bonded pairs
+        for (i, j), bond_length in bonds.items():
+            enforce_bond(particles[i], particles[j], bond_length)
         
         # creates a background color
         window.fill(BACKGROUND_COLOR)
+
+        # Draw rigid bars between bonded particles
+        for i, j in bonds:
+            p1 = particles[i]
+            p2 = particles[j]
+            pygame.draw.line(window, BOND_COLOR, (int(p1.x), int(p1.y)), (int(p2.x), int(p2.y)), BOND_WIDTH)
         
         #Displays the particles as circles
         for p in particles:
